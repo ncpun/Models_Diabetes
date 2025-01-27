@@ -1,0 +1,1588 @@
+---
+title: "Projekt_eksploracja"
+author: "Anastasiia Ivashchenko, Łukasz Moździerz"
+format: 
+  html:
+    warning: false
+    message: false
+    echo: false
+    self-contained: true
+    toc: true
+    toc_float:
+      toc_positon: "right"
+      smooth_scroll: true
+embed-resources: true 
+editor: visual
+editor_options: 
+  chunk_output_type: inline
+---
+
+# Wstęp
+
+Cukrzyca jest poważnym schorzeniem metabolicznym, które dotyka miliony ludzi na całym świecie. Charakteryzuje się chronicznie podwyższonym poziomem glukozy we krwi, co może prowadzić do licznych powikłań zdrowotnych. Analiza danych odgrywa kluczową rolę w zrozumieniu i zarządzaniu cukrzycą.
+
+## Cel projektu
+
+Celem naszego projektu jest analiza danych dotyczących pacjentów z cukrzycą. Zbiór danych zawiera informacje o 768 pacjentach. Na podstawie kilku zmiennych, takich jak poziom glukozy, ciśnienie krwi, BMI itp., będziemy przewidywać, czy dana osoba jest chora na cukrzycę.
+
+## Źródło danych
+
+Źródłem danych jest strona NHANES (National Health and Nutrition Examination Survey). Stworzyliśmy tabelę z wybranych zmiennych dostępnych na tej stronie, aby przeprowadzić analizę pacjentów z cukrzycą.
+
+## Wybrane zmienne
+
+Zbiór danych predykcji cukrzycy to zbiór danych medycznych i demograficznych od pacjentów, wraz z ich statusem cukrzycy (pozytywnym lub negatywnym). Może to być przydatne dla pracowników służby zdrowia w identyfikacji pacjentów, którzy mogą być zagrożeni rozwojem cukrzycy i w opracowywaniu spersonalizowanych planów leczenia. Ponadto zbiór danych może być wykorzystywany przez naukowców do badania związków między różnymi czynnikami medycznymi i demograficznymi a prawdopodobieństwem rozwoju cukrzycy.
+
+-   **gender -** Płeć odnosi się do biologicznej płci jednostki, co może wpływać na jej podatność na cukrzycę. Wyróżnia się trzy kategorie: ***male, female and other***.
+
+-   **age -** Wiek jest ważnym czynnikiem, ponieważ cukrzyca jest częściej diagnozowana u osób starszych. Wiek w zbiorze danych mieści się w przedziale ***0-80*** lat.
+
+-   **hypertension -** Nadciśnienie tętnicze to stan medyczny, w którym ciśnienie krwi w tętnicach jest trwale podwyższone. Ma wartości **0 lub 1**, gdzie 0 oznacza brak nadciśnienia, a 1 oznacza jego obecność.
+
+-   **heart_diseas -** Choroba serca to kolejny stan medyczny związany ze zwiększonym ryzykiem rozwoju cukrzycy. Ma wartości **0 lub 1**, gdzie 0 oznacza brak choroby serca, a 1 oznacza jej obecność.
+
+-   **smoking_history -** Historia palenia również jest uważana za czynnik ryzyka cukrzycy i może zaostrzać powikłania związane z cukrzycą. W zbiorze danych wyróżnia się 5 kategorii: ***not current, former, No Info, current, never and ever***.
+
+-   **bmi -** BMI (Body Mass Index) to wskaźnik masy ciała oparty na wadze i wzroście. Wyższe wartości BMI są związane z wyższym ryzykiem cukrzycy. Zakres BMI w zbiorze danych wynosi **10.01-95.69**. BMI poniżej 18,5 oznacza niedowagę, 18,5-24,9 to waga prawidłowa, 25-29,9 to nadwaga, a 30 lub więcej to otyłość.
+
+-   **HbA1c_level -** Poziom HbA1c (Hemoglobina A1c) to miara średniego poziomu cukru we krwi z ostatnich 2-3 miesięcy. Wyższe poziomy wskazują na większe ryzyko rozwoju cukrzycy. Zazwyczaj poziom HbA1c powyżej **6,5%** wskazuje na cukrzycę.
+
+-   **blood_glucose_level -** Poziom glukozy we krwi odnosi się do ilości glukozy we krwi w danym momencie. Wysoki poziom glukozy we krwi jest kluczowym wskaźnikiem cukrzycy. Oczekiwane wartości dla normalnej stężenia glukozy na czczo wynoszą **od 70 mg/dL (3,9 mmol/L) do 100 mg/dL (5,6 mmol/L)**. Kiedy poziom glukozy na czczo wynosi między 100 a 125 mg/dL (5,6 do 6,9 mmol/L), zaleca się zmiany w stylu życia i monitorowanie glikemii.
+
+-   **diabetes -** Cukrzyca jest zmienną docelową przewidywaną w projekcie, gdzie wartość 1 oznacza obecność cukrzycy, a wartość 0 oznacza jej brak.
+
+```{r}
+library(skimr)
+library(dplyr)
+library(knitr)
+library(tidyr)
+library(ggplot2)
+library(gridExtra)
+library(ggrepel)
+library(GGally)
+library(corrplot)
+library(kableExtra)
+```
+
+```{r}
+dane <- read.csv2("diabetes_prediction_dataset.csv", sep = ",")
+dane$gender <- as.factor(dane$gender)
+dane$age <- as.numeric(dane$age)
+dane$hypertension <- as.factor(dane$hypertension)
+dane$heart_disease <- as.factor(dane$heart_disease)
+dane$smoking_history <- as.factor(dane$smoking_history)
+dane$bmi <- as.numeric(dane$bmi)
+dane$HbA1c_level <- as.numeric(dane$HbA1c_level)
+dane$blood_glucose_level <- as.numeric(dane$blood_glucose_level)
+dane$diabetes <- as.factor(ifelse(dane$diabetes == 1, "YES", "NO"))
+dane$diabetes <- as.factor(dane$diabetes)
+levels(dane$diabetes) <- c("NO", "YES")
+```
+
+## Sprawdzenie braków danych
+
+```{r}
+cat("NA =", sum(is.na(dane)))
+```
+
+Zbiór nie zawiera braków danych.
+
+## Usuwanie wierszy
+
+```{r}
+table1 <- table(dane$diabetes)
+kable(as.data.frame(table1), col.names = c("Diabetes", "Liczba"), caption = "Rozkład klas przed balansowaniem")
+```
+
+Liczba osób bez cukrzycy jest znacznie większa niż liczba osób z cukrzycą. Dlatego lepiej, aby liczba osób w obu grupach była zrównoważona.
+
+```{r}
+no_data <- dane[dane$diabetes == "NO", ]
+yes_data <- dane[dane$diabetes == "YES", ]
+
+set.seed(1457)
+no_sample <- no_data[sample(1:nrow(no_data), 8500), ]
+
+balanced_data <- rbind(no_sample, yes_data)
+
+table2 <- table(balanced_data$diabetes)
+kable(as.data.frame(table2), col.names = c("Diabetes", "Liczba"), caption = "Rozkład klas po balansowaniu")
+
+```
+
+# Wizualizacja danych
+
+## Podstawowe statystyki opisowe zmiennych kategorycznych
+
+```{r}
+
+cat_summary <- balanced_data %>%
+  select(gender, hypertension, heart_disease, smoking_history, diabetes) %>%
+  summarise(across(everything(), ~ list(table(.)))) %>%
+  pivot_longer(everything(), names_to = "Zmienna", values_to = "FrequencyTable")
+
+cat_summary_df <- cat_summary %>%
+  unnest(cols = c(FrequencyTable)) %>%
+  mutate(
+    Kategoria = rownames(FrequencyTable),
+    Wystąpienia = FrequencyTable
+  ) %>%
+  select(Zmienna, Kategoria, Wystąpienia) %>%
+  mutate(Procent = round(Wystąpienia * 100 / nrow(balanced_data),2))
+
+cat_table <- cat_summary_df %>%
+  kbl(caption = "Podsumowanie zmiennych kategorialnych") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = F)%>%
+  column_spec(1, background = "#295b86")
+
+cat_table
+
+```
+
+```{r}
+library(ggrepel)
+pie_charts <- list()
+
+for (var in unique(cat_summary_df$Zmienna)) {
+  data <- cat_summary_df %>% filter(Zmienna == var)
+  title <- paste( var)
+  
+  pie_chart <- ggplot(data, aes(x = "", y = Procent, fill = Kategoria)) +
+    geom_bar(stat = "identity", width = 1, color = "white") +
+    coord_polar("y") +
+    labs(title = title, x = NULL, y = NULL) +
+    scale_fill_brewer(palette = "Set3") +
+    theme_void() +
+    theme(legend.position = "right") +
+    geom_label_repel(
+      aes(label = paste0(round(Procent, 2), "%"), y = Procent / 2),
+      size = 2.5,
+      box.padding = 0.5,
+      show.legend = FALSE,
+      color = "black"
+    )
+  
+  pie_charts[[var]] <- pie_chart
+}
+
+num_pie_charts <- length(pie_charts)
+
+ncol <- ceiling(sqrt(num_pie_charts))
+nrow <- ceiling(num_pie_charts / ncol)
+
+do.call(grid.arrange, c(pie_charts, nrow = nrow, ncol = ncol))
+```
+
+-   W populacji badanej przeważają kobiety.
+
+-   Większość badanych nie ma nadciśnienia ani chorób serca.
+
+-   Historia palenia jest zróżnicowana, z największą liczbą osób nigdy niepalących.
+
+-   Badana próba jest równomiernie podzielona pomiędzy osoby z cukrzycą i bez cukrzycy.
+
+## Podstawowe statystyki opisowe zmiennych numerycznych
+
+```{r}
+zmienne_numeryczne <- balanced_data %>%
+  select(age, bmi, HbA1c_level, blood_glucose_level)
+
+num_summary <- balanced_data %>%
+  select(age, bmi, HbA1c_level, blood_glucose_level) %>%
+  skim() %>%
+  as.data.frame() %>%
+  select(names(skim(zmienne_numeryczne))[-c(1,3,4,12)])
+
+colnames(num_summary) <- c("Zmienna","Średnia","Odchylenie standardowe","Minimum","1 Kwartyl ","Mediana","3 Kwartyl","Maksimum")
+num_summary$`Odchylenie standardowe` <- round(num_summary$`Odchylenie standardowe`,2)
+num_summary$Średnia<- round(num_summary$Średnia,2)
+num_table <- num_summary %>%
+  kbl(caption = "Podsumowanie zmiennych numerycznych") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = F)%>%
+  column_spec(1, background = "#295b86")
+num_table
+
+
+```
+
+```{r}
+create_plot <- function(data, variable, title, color="#295b86") {
+  ggplot(data, aes_string(variable)) +
+    geom_histogram(binwidth = 1, fill = color, color = "black", alpha = 0.7) +
+    geom_vline(aes_string(xintercept = paste0("mean(", variable, ", na.rm=TRUE)")),
+               color = "#d76b69", linetype = "dashed", linewidth = 1) +
+    ggtitle(title) +
+    theme_minimal() +
+    theme(
+      plot.title = element_text(hjust = 0.5, size = 16, face = "bold"), 
+      axis.title = element_text(size = 12), 
+      axis.text = element_text(size = 10)  
+    )
+}
+
+plot_age <- create_plot(balanced_data, "age", "Rozkład wieku", color="#AF47D2")
+plot_bmi <- create_plot(balanced_data, "bmi", "Rozkład BMI", color="#d76b69")
+plot_HbA1c_level <- create_plot(balanced_data, "HbA1c_level", "Rozkład poziomu HbA1c", color="#FF8F00")
+plot_blood_glucose_level <- create_plot(balanced_data, "blood_glucose_level", "Rozkład poziomu glukozy we krwi", color="#FFDB00")
+
+grid.arrange(
+  plot_age, plot_blood_glucose_level,
+  plot_bmi, plot_HbA1c_level,
+  nrow = 2, ncol = 2
+)
+
+```
+
+Na pierwszym histogramie możemy zauważyć że w zbiorze występuje przewaga osób po 40 roku życia w stuosunku do młodszych. Jednak najbardziej wyróżnia się wysoki słupek przy wieku 80 lat.
+
+Rozkład poziomu glukozy we krwi nie jest gładki ale raczej słupki pojawiają się w odstępach może to oznaczać że pomiary mają dokładność co około 20 jednostek. Większość obserwacji miści się w zakresie 125-200 co jest raczej podwyzszonym poziomem glukozy we krwi.
+
+Rozkład BMI przypomina rozkład normalny z lekką prawostronną asymetrią z wyjatkiem wartości 26.7 gdzie jest bardzo duża kumulacja obserwacji.
+
+Poziom HbA1c w próbie koncentruje się koło wartości 6.
+
+## Analiza Rozkładu BMI w Zależności od Płci
+
+```{r}
+violin_bmi_gender <- ggplot(balanced_data, aes(x = gender, y = bmi, fill = gender)) +
+  geom_violin(trim = FALSE) +
+  labs(title = "BMI w zależności od płci", x = "Płeć", y = "BMI") +
+   scale_fill_manual(values = c("Male" = "#AF47D2", "Female" = "#d76b69", "Other" = "#295b86")) +
+  theme_minimal()
+
+violin_bmi_gender
+```
+
+## Analiza Wykresów HbA1c i Glukozy we Krwi
+
+```{r, include: false}
+
+boxplot_HbA1c_level <- ggplot(balanced_data, aes(y = HbA1c_level)) +
+  geom_boxplot(fill = "#AF47D2") +
+  labs(title = "Wykres pudełkowy poziomu HbA1c", y = "Poziom HbA1c") +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+density_HbA1c_level <- ggplot(balanced_data, aes(x = HbA1c_level)) +
+  geom_density(fill = "#d76b69") +
+  labs(title = "Wykres gęstości poziomu HbA1c", x = "Poziom HbA1c", y = "Gęstość") +
+  theme_minimal()
+
+boxplot_blood_glucose_level <- ggplot(balanced_data, aes(y = blood_glucose_level)) +
+  geom_boxplot(fill = "#FF8F00") +
+  labs(title = "Poziom glukozy we krwi", y = "Poziom glukozy we krwi") +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+density_blood_glucose_level <- ggplot(balanced_data, aes(x = blood_glucose_level)) +
+  geom_density(fill = "#FFDB00") +
+  labs(title = "Poziom glukozy we krwi", x = "Poziom glukozy we krwi", y = "Gęstość") +
+  theme_minimal()
+
+grid.arrange(
+  boxplot_HbA1c_level, boxplot_blood_glucose_level,
+  density_HbA1c_level, density_blood_glucose_level,
+  nrow = 2, ncol = 2
+)
+
+
+```
+
+1.  **Wykresy poziomu HbA1c:**
+
+    -   Średni poziom HbA1c mieści się w przedziale 5-6%. Powyżej 6,5% to potencjalna cukrzyca.
+
+    -   Wartości skrajne, poza typowym zakresem, dochodzą do około 9%.
+
+    -   Widać kilka pików, wskazujących na różne podgrupy w danych. Najwięcej badanych ma poziom HbA1c w zakresie 5.5-7%.
+
+2.  **Wykresy poziomu glukozy we krwi:**
+
+    -   Skrajne wartości osiągają nawet 300 mg/dL, co wskazuje na osoby z poważną hiperglikemią.
+
+    -   Widać kilka pików, podobnie jak przy HbA1c, sugerujących różne podgrupy badanych. Największy pik występuje w przedziale 100-150 mg/dL.
+
+### Ogólne wnioski
+
+-   Wśród badanych mężczyźni są nieco bardziej reprezentowani niż kobiety.
+
+-   Duży odsetek badanych nigdy nie palił lub przestał palić, co jest pozytywne z punktu widzenia zdrowia publicznego.
+
+-   Poziomy HbA1c i glukozy we krwi pokazują, że istnieje znaczna liczba osób z wynikami sugerującymi potrzebę monitorowania pod kątem cukrzycy lub stanu przedcukrzycowego.
+
+## Macierz Korelacji dla Zmiennych Numerycznych
+
+```{r}
+# "gender"  "age"   "hypertension" ''heart_disease" "smoking_history" "bmi"       
+# "HbA1c_level"   "blood_glucose_level" "diabetes"
+balanced_data <- balanced_data %>%
+  mutate(
+    gender = as.factor(gender),
+    hypertension = as.factor(hypertension),
+    heart_disease = as.factor(heart_disease),
+    smoking_history = as.factor(smoking_history),
+    diabetes = as.factor(diabetes)
+  )
+
+numeric_vars <- balanced_data %>% select(age, bmi, HbA1c_level, blood_glucose_level)
+
+numeric_corr <- cor(numeric_vars, use = "complete.obs")
+numeric_corr
+corrplot(numeric_corr, type = 'lower', order = 'hclust', tl.col = 'black',
+         cl.ratio = 0.2, tl.srt = 45, col = COL2('PuOr', 10))
+```
+
+Age
+
+**BMI** (0.27),
+
+**Poziom HbA1c**: (0.29)
+
+**Poziom glukozy we krwi**: (0.27),
+
+Korelacje sugerują, że starsze osoby mogą mieć wyższe BMI, wyższy poziom HbA1c i wyższy poziom glukozy we krwi.
+
+Analogicznie z pozostałymi zmiennymi, ogólnie widać że zmienne są w jakimś stopniu pozytywnie ze sobą skorelowane.
+
+Najmniejsza korelacja jest pomiędzy BMI a poziomem glukozy we krwi i wynosi 0.184
+
+## Analiza Zależności BMI od Wieku z Podziałem na Cukrzycę
+
+```{r}
+plot_bmi_age_diabetes_jitter <- ggplot(balanced_data, aes(x = age, y = bmi, color = factor(diabetes))) +
+  geom_jitter(alpha = 0.04) +  # Dodanie jittera
+  geom_smooth(method = "lm", se = FALSE, size = 1) +  # Linie regresji
+  labs(title = "Zależność BMI od wieku z podziałem na cukrzycę",
+       x = "Wiek",
+       y = "BMI",
+       color = "Cukrzyca") +
+  theme_minimal() +
+  scale_color_manual(values = c("NO" = "#295b86", "YES" = "#d76b69"), labels = c("Nie", "Tak"))
+
+print(plot_bmi_age_diabetes_jitter)
+
+```
+
+Na tym wykresie widać podział kolorów - niebieski po lewej, czerwony po prawej, co oznacza, że występowanie cukrzycy jest powiązane z wiekiem. Im osoba starsza tym bardziej prawdopodobne, że choruje na cukrzycę.
+
+# Uczenie maszynowe
+
+```{r}
+library(kernlab)
+library(bnclassify)
+library(ordinalNet)
+library(caret)
+library(tidymodels)
+library(randomForest)
+library(xgboost)
+library(e1071)
+library(dplyr)
+library(kableExtra)
+library(pROC)
+```
+
+```{r}
+dane <- balanced_data
+```
+
+## Podział danych
+
+Dane zostały podzielone na dwa zbiory: treningowy (70% danych) i testowy (30% danych). Proces ten został wykonany z wykorzystaniem funkcji `createDataPartition`, która zapewnia losowy, ale zrównoważony podział danych, uwzględniając proporcje klas zmiennej docelowej `diabetes`. Dzięki temu, zarówno zbiór treningowy, jak i testowy, zachowują proporcje występowania klasy "YES" i "NO", co jest kluczowe dla wiarygodnej oceny modelu.
+
+```{r}
+set.seed(2024)
+train_index <- createDataPartition(dane$diabetes, p = 0.7, list = FALSE)
+train_data <- dane[train_index,]
+test_data <- dane[-train_index,]
+```
+
+## Standaryzacja danych
+
+Aby zapewnić spójność i poprawność wyników modeli, przeprowadzono standaryzację danych. Standaryzacja polegała na centrowaniu i skalowaniu zmiennych w zbiorach treningowym i testowym. Dzięki temu wszystkie zmienne mają średnią równą zero i odchylenie standardowe równe jeden, co poprawia działanie algorytmów uczących się.
+
+```{r}
+preprocess_params <- preProcess(train_data, method = c("center", "scale"))
+train_data <- predict(preprocess_params, train_data)
+test_data <- predict(preprocess_params, test_data)
+```
+
+## Ustawienie walidacji krzyżowej z obliczaniem prawdopodobieństw klasowych
+
+Przeprowadzono walidację krzyżową z pięcioma podziałami, powtórzoną pięć razy, aby dokładnie ocenić wydajność modelu. Model zwraca również prawdopodobieństwa przynależności do poszczególnych klas.
+
+```{r}
+control <- trainControl(method = "repeatedcv", number = 5, repeats = 5, 
+                        summaryFunction = twoClassSummary, classProbs = TRUE)
+
+```
+
+## 1. Logistic Regression
+
+Logistic Regression to techniką statystyczną stosowaną do modelowania prawdopodobieństwa wystąpienia określonego zdarzenia. Jest szczególnie użyteczna w przypadku problemów klasyfikacyjnych, gdzie wynikowa zmienna zależna jest binarna.
+
+Wartości parametrów alpha i lambda w siatce tuneGrid_lr umożliwiają przetestowanie różnych kombinacji regularizacji w modelu regresji logistycznej, aby znaleźć optymalne parametry.
+
+```{r}
+tuneGrid_lr <- expand.grid(alpha = c(0.1, 0.3, 0.5, 0.6), lambda = seq(0.001, 0.01, by = 0.002))
+
+# Trening modelu przy użyciu funkcji 'train' z metodą 'glmnet'
+set.seed(2024)
+model_log <- train(diabetes ~ ., data = train_data, method = "glmnet", 
+                   trControl = control, metric = "ROC", tuneGrid = tuneGrid_lr)
+
+```
+
+### Wyświetlenie najlepszych hiperparametrów
+
+```{r}
+library(kableExtra)
+
+best_params <- model_log$bestTune
+
+best_params_df <- as.data.frame(best_params)
+
+rownames(best_params_df) <- NULL
+
+best_params_df %>%
+  kbl(caption = "Najlepsze hiperparametry dla modelu Logistic Regression") %>%
+  kable_styling(full_width = T) %>%
+  row_spec(1, background = "#295b86") 
+
+
+```
+
+### Predykcja na zbiorze treningowym
+
+```{r}
+pred_log_train <- predict(model_log, newdata = train_data)
+conf_matrix_log_train <- confusionMatrix(pred_log_train, train_data$diabetes, positive = "YES")
+
+train_accuracy_log <- conf_matrix_log_train$overall["Accuracy"]
+
+conf_matrix_log_train$table %>%
+  kbl(caption = "Macierz konfuzji dla zbioru treningowego") %>%
+  kable_styling(bootstrap_options = c("hover"), full_width = F) %>%
+  column_spec(1, background = "#295b86")
+
+```
+
+### Wyświetlenie statystyk dla zbioru treningowego
+
+```{r}
+conf_matrix_log_train_stats <- conf_matrix_log_train$byClass
+conf_matrix_log_train_overall <- conf_matrix_log_train$overall
+
+j_index_log_train <- conf_matrix_log_train_stats["Sensitivity"] + conf_matrix_log_train_stats["Specificity"] - 1
+
+conf_matrix_log_train_df <- tibble(
+  Metric = c("Accuracy", "Kappa", "Sensitivity", "Specificity", "Pos Pred Value", "Neg Pred Value", "Prevalence", "Detection Rate", "Detection Prevalence", "Balanced Accuracy", "J Index"),
+  Value = c(
+    conf_matrix_log_train_overall["Accuracy"], 
+    conf_matrix_log_train_overall["Kappa"], 
+    conf_matrix_log_train_stats["Sensitivity"], 
+    conf_matrix_log_train_stats["Specificity"], 
+    conf_matrix_log_train_stats["Pos Pred Value"], 
+    conf_matrix_log_train_stats["Neg Pred Value"], 
+    conf_matrix_log_train_stats["Prevalence"], 
+    conf_matrix_log_train_stats["Detection Rate"], 
+    conf_matrix_log_train_stats["Detection Prevalence"], 
+    conf_matrix_log_train_stats["Balanced Accuracy"],
+    j_index_log_train
+  )
+)
+
+train_table_log <- conf_matrix_log_train_df %>%
+  mutate(Value = round(Value, 4)) %>%
+  kbl(caption = "Macierz klasyfikacji i statystyki dla zbioru treningowego") %>%
+  kable_styling(bootstrap_options = c("hover"), full_width = F) %>%
+  column_spec(2, background = "#295b86")
+train_table_log
+
+```
+
+### Predykcja na zbiorze testowym
+
+```{r}
+pred_log_test <- predict(model_log, newdata = test_data)
+conf_matrix_log_test <- confusionMatrix(pred_log_test, test_data$diabetes, positive = "YES")
+
+test_accuracy_log <- conf_matrix_log_test$overall["Accuracy"]
+
+conf_matrix_log_test$table %>%
+  kbl(caption = "Macierz konfuzji dla zbioru testowego") %>%
+  kable_styling(bootstrap_options = c("hover"), full_width = F) %>%
+  column_spec(1, background = "#295b86")
+
+```
+
+### Wyświetlenie statystyk dla zbioru testowego
+
+```{r}
+conf_matrix_log_test_stats <- conf_matrix_log_test$byClass
+conf_matrix_log_test_overall <- conf_matrix_log_test$overall
+
+j_index_log_test <- conf_matrix_log_test_stats["Sensitivity"] + conf_matrix_log_test_stats["Specificity"] - 1
+
+conf_matrix_log_test_df <- tibble(
+  Metric = c("Accuracy", "Kappa", "Sensitivity", "Specificity", "Pos Pred Value", "Neg Pred Value", "Prevalence", "Detection Rate", "Detection Prevalence", "Balanced Accuracy", "J Index"),
+  Value = c(
+    conf_matrix_log_test_overall["Accuracy"], 
+    conf_matrix_log_test_overall["Kappa"], 
+    conf_matrix_log_test_stats["Sensitivity"], 
+    conf_matrix_log_test_stats["Specificity"], 
+    conf_matrix_log_test_stats["Pos Pred Value"], 
+    conf_matrix_log_test_stats["Neg Pred Value"], 
+    conf_matrix_log_test_stats["Prevalence"], 
+    conf_matrix_log_test_stats["Detection Rate"], 
+    conf_matrix_log_test_stats["Detection Prevalence"], 
+    conf_matrix_log_test_stats["Balanced Accuracy"],
+    j_index_log_test
+  )
+)
+
+test_table_log <- conf_matrix_log_test_df %>%
+  mutate(Value = round(Value, 4)) %>%
+  kbl(caption = "Macierz klasyfikacji i statystyki dla zbioru testowego") %>%
+  kable_styling(bootstrap_options = c("hover"), full_width = F) %>%
+  column_spec(2, background = "#295b86")
+test_table_log
+
+
+```
+
+### Obliczanie i wyświetlanie AUC
+
+Aby sprawdzić, czy model nie ulega przeuczeniu, będziemy porównywać jego wydajność na zbiorze treningowym i testowym, korzystając z wartości wskaźników AUC (Area Under the Curve) oraz F1-Score (Przyjmujemy, że róźnica miedzy zbiorem testowym a treningowym nie powinna być większa od 0.05). Różnice w tych wartościach pomiędzy zbiorami treningowym a testowym nie powinny być duże. Jeśli model osiąga znacznie lepsze wyniki na danych treningowych niż na testowych, może to wskazywać na przeuczenie, co oznacza, że model zbyt dobrze dostosował się do danych treningowych.
+
+Te same czynności bedziemy też wykonywać na innych modelach.
+
+```{r}
+roc_train_log <- roc(train_data$diabetes, as.numeric(predict(model_log, train_data, type = "prob")[, 2]))
+auc_train_log <- auc(roc_train_log)
+
+roc_test_log <- roc(test_data$diabetes, as.numeric(predict(model_log, test_data, type = "prob")[, 2]))
+auc_test_log <- auc(roc_test_log)
+
+plot(roc_train_log, col = "#26355D", main = "ROC Curve - Training vs Testing")
+lines(roc_test_log, col = "#d76b69")
+legend("bottomright", legend = c("Train", "Test"), col = c("#26355D", "#d76b69"), lwd = 2)
+
+auc_results_log <- tibble(
+  Metric = c("AUC (Training Set)", "AUC (Testing Set)"),
+  Value = c(auc_train_log, auc_test_log)
+)
+
+auc_results_log %>%
+  mutate(Value = round(Value, 4)) %>%
+  kbl(caption = "Wartości AUC dla zbiorów treningowego i testowego") %>%
+  kable_styling(bootstrap_options = c("hover"), full_width = F) %>%
+  column_spec(1, background = "#295b86")
+```
+
+```{r}
+overfitting_check_log <- if (auc_train_log - auc_test_log > 0.05) {
+  "Model może być przeuczony (overfitting)."
+} else {
+  "Model jest dobrze dopasowany."
+}
+
+cat("Ocena modelu: ", overfitting_check_log)
+```
+
+### Obliczanie i wyświetlanie F1-Score
+
+```{r}
+f1_train_log <- F_meas(data = pred_log_train, reference = train_data$diabetes, positive = "YES")
+
+f1_test_log <- F_meas(data = pred_log_test, reference = test_data$diabetes, positive = "YES")
+
+f1_results_log <- tibble(
+  Metric = c("F1-Score (Training Set)", "F1-Score (Testing Set)"),
+  Value = c(f1_train_log, f1_test_log)
+)
+
+f1_results_log %>%
+  mutate(Value = round(Value, 4)) %>%
+  kbl(caption = "Wartości F1-Score dla zbiorów treningowego i testowego") %>%
+  kable_styling(bootstrap_options = c("hover"), full_width = F) %>%
+  column_spec(1, background = "#295b86")
+```
+
+```{r}
+overfitting_check_f1_log <- if (f1_train_log - f1_test_log > 0.05) {
+  "Model może być przeuczony (overfitting)."
+} else {
+  "Model jest dobrze dopasowany."
+}
+
+cat("Ocena modelu (F1-Score): ", overfitting_check_f1_log)
+```
+
+### Ważność zmiennych dla regresji logistycznej
+
+```{r}
+var_imp_log <- varImp(model_log)
+var_imp_log_df <- as.data.frame(var_imp_log$importance)
+var_imp_log_df$Feature <- rownames(var_imp_log_df)
+ggplot(var_imp_log_df, aes(x = reorder(Feature, Overall), y = Overall)) + 
+  geom_bar(stat = "identity", fill = "#295b86") + 
+  coord_flip() + 
+  labs(title = "Ważność zmiennych - Logistic Regression", x = "Feature", y = "Importance")
+```
+
+Najważniejsze zmienne to HbA1c_level, blood_glucose_level, age i bmi.
+
+## 2. Model Random Forest z przycinaniem (pruning)
+
+Random Forest jest potężną techniką uczenia maszynowego używaną do zadań klasyfikacji i regresji. Składa się z wielu drzew decyzyjnych, które współpracują, aby poprawić ogólną dokładność modelu.
+
+Aby zapobiec przeuczeniu, ograniczyliśmy głębokość drzew i dostosowaliśmy kluczowe parametry modelu, takie jak liczba zmiennych, liczba drzew, minimalna liczba próbek w liściu oraz maksymalna liczba węzłów.
+
+```{r}
+tuneGrid_rf <- expand.grid(mtry = c(1, 3, 5, 7, 9, 11))
+
+set.seed(2024)
+model_rf <- train(diabetes ~ ., data = train_data, method = "rf", 
+                  trControl = control, tuneGrid = tuneGrid_rf, metric = "ROC",
+                  ntree = 500, nodesize = 10, maxnodes = 30)
+
+```
+
+### Wyświetlenie najlepszych hiperparametrów
+
+Zidentyfikowano optymalne wartości hiperparametrów, które zapewniają najlepszą wydajność modelu.
+
+```{r}
+library(kableExtra)
+
+best_params <- model_rf$bestTune
+
+best_params_df <- as.data.frame(best_params)
+
+rownames(best_params_df) <- NULL
+
+best_params_df %>%
+  kbl(caption = "Najlepsze hiperparametry dla modelu Random Forest") %>%
+  kable_styling(full_width = T) %>%
+  row_spec(1, background = "#AF47D2")  # Żółte tło dla wiersza z wartością hiperparametru
+
+
+```
+
+### Predykcja na zbiorze treningowym
+
+```{r}
+pred_rf_train <- predict(model_rf, newdata = train_data)
+conf_matrix_rf_train <- confusionMatrix(pred_rf_train, train_data$diabetes, positive = "YES")
+
+train_accuracy <- conf_matrix_rf_train$overall["Accuracy"]
+
+conf_matrix_table_df <- conf_matrix_rf_train$table
+
+conf_matrix_table_df %>%
+  kbl(caption = "Macierz konfuzji dla zbioru treningowego") %>%
+  kable_styling(bootstrap_options = c("hover"), full_width = F) %>%
+  column_spec(1, background = "#AF47D2")
+```
+
+### Wyświetlenie statystyk dla zbioru treningowego
+
+```{r}
+conf_matrix_rf_train_stats <- conf_matrix_rf_train$byClass
+conf_matrix_rf_train_overall <- conf_matrix_rf_train$overall
+
+# Obliczanie dodatkowych metryk
+j_index <- conf_matrix_rf_train_stats["Sensitivity"] + conf_matrix_rf_train_stats["Specificity"] - 1
+
+# Tabela
+conf_matrix_rf_train_df <- tibble(
+  Metric = c("Accuracy", "Kappa", "Sensitivity", "Specificity", "Pos Pred Value", "Neg Pred Value", "Prevalence", "Detection Rate", "Detection Prevalence", "Balanced Accuracy", "J Index"),
+  Value = c(
+    conf_matrix_rf_train_overall["Accuracy"], 
+    conf_matrix_rf_train_overall["Kappa"], 
+    conf_matrix_rf_train_stats["Sensitivity"], 
+    conf_matrix_rf_train_stats["Specificity"], 
+    conf_matrix_rf_train_stats["Pos Pred Value"], 
+    conf_matrix_rf_train_stats["Neg Pred Value"], 
+    conf_matrix_rf_train_stats["Prevalence"], 
+    conf_matrix_rf_train_stats["Detection Rate"], 
+    conf_matrix_rf_train_stats["Detection Prevalence"], 
+    conf_matrix_rf_train_stats["Balanced Accuracy"],
+    j_index
+  )
+)
+
+train_table <- conf_matrix_rf_train_df %>%
+  mutate(Value = round(Value, 4)) %>%
+  kbl(caption = "Macierz klasyfikacji i statystyki dla zbioru treningowego") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = F) %>%
+  column_spec(2, background = "#AF47D2")
+train_table
+```
+
+### Predykcja na zbiorze testowym
+
+```{r}
+pred_rf <- predict(model_rf, newdata = test_data)
+conf_matrix_rf_test <- confusionMatrix(pred_rf, test_data$diabetes, positive = "YES")
+
+test_accuracy <- conf_matrix_rf_test$overall["Accuracy"]
+
+
+conf_matrix_test_table_df <- conf_matrix_rf_test$table
+
+conf_matrix_test_table_df %>%
+  kbl(caption = "Macierz konfuzji dla zbioru testowego") %>%
+  kable_styling(bootstrap_options = c("hover"), full_width = F) %>%
+  column_spec(1, background = "#AF47D2")
+```
+
+### Wyświetlenie statystyk dla zbioru testowego
+
+```{r}
+conf_matrix_rf_test_stats <- conf_matrix_rf_test$byClass
+conf_matrix_rf_test_overall <- conf_matrix_rf_test$overall
+
+j_index_test <- conf_matrix_rf_test_stats["Sensitivity"] + conf_matrix_rf_test_stats["Specificity"] - 1
+
+conf_matrix_rf_test_df <- tibble(
+  Metric = c("Accuracy", "Kappa", "Sensitivity", "Specificity", "Pos Pred Value", "Neg Pred Value", "Prevalence", "Detection Rate", "Detection Prevalence", "Balanced Accuracy", "J Index"),
+  Value = c(
+    conf_matrix_rf_test_overall["Accuracy"], 
+    conf_matrix_rf_test_overall["Kappa"], 
+    conf_matrix_rf_test_stats["Sensitivity"], 
+    conf_matrix_rf_test_stats["Specificity"], 
+    conf_matrix_rf_test_stats["Pos Pred Value"], 
+    conf_matrix_rf_test_stats["Neg Pred Value"], 
+    conf_matrix_rf_test_stats["Prevalence"], 
+    conf_matrix_rf_test_stats["Detection Rate"], 
+    conf_matrix_rf_test_stats["Detection Prevalence"], 
+    conf_matrix_rf_test_stats["Balanced Accuracy"],
+    j_index_test
+  )
+)
+
+test_table <- conf_matrix_rf_test_df %>%
+  mutate(Value = round(Value, 4)) %>%
+  kbl(caption = "Macierz klasyfikacji i statystyki dla zbioru testowego") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = F) %>%
+  column_spec(2, background = "#AF47D2")
+test_table
+```
+
+### Obliczanie i wyświetlanie AUC
+
+```{r}
+roc_train <- roc(train_data$diabetes, as.numeric(predict(model_rf, train_data, type = "prob")[, 2]))
+auc_train <- auc(roc_train)
+
+roc_test <- roc(test_data$diabetes, as.numeric(predict(model_rf, test_data, type = "prob")[, 2]))
+auc_test <- auc(roc_test)
+
+plot(roc_train, col = "#AF47D2", main = "ROC Curve - Training vs Testing")
+lines(roc_test, col = "#FF8F00")
+legend("bottomright", legend = c("Train", "Test"), col = c("#AF47D2", "#FF8F00"), lwd = 2)
+```
+
+```{r}
+auc_results <- tibble(
+  Metric = c("AUC (Training Set)", "AUC (Testing Set)"),
+  Value = c(auc_train, auc_test)
+)
+
+auc_results %>%
+  mutate(Value = round(Value, 4)) %>%
+  kbl(caption = "Wartości AUC dla zbiorów treningowego i testowego") %>%
+  kable_styling(bootstrap_options = c("hover"), full_width = F) %>%
+  column_spec(1, background = "#AF47D2")
+
+overfitting_check <- if (auc_train - auc_test > 0.05) {
+  "Model może być przeuczony (overfitting)."
+} else {
+  "Model jest dobrze dopasowany."
+}
+
+cat("Ocena modelu: ", overfitting_check)
+
+```
+
+### Obliczanie i wyświetlanie F1-Score
+
+```{r}
+f1_train <- F_meas(data = pred_rf_train, reference = train_data$diabetes, positive = "YES")
+
+f1_test <- F_meas(data = pred_rf, reference = test_data$diabetes, positive = "YES")
+
+f1_results <- tibble(
+  Metric = c("F1-Score (Training Set)", "F1-Score (Testing Set)"),
+  Value = c(f1_train, f1_test)
+)
+
+f1_results %>%
+  mutate(Value = round(Value, 4)) %>%
+  kbl(caption = "Wartości F1-Score dla zbiorów treningowego i testowego") %>%
+  kable_styling(bootstrap_options = c("hover"), full_width = F) %>%
+  column_spec(1, background = "#AF47D2")
+
+overfitting_check_f1 <- if (f1_train - f1_test > 0.05) {
+  "Model może być przeuczony (overfitting)."
+} else {
+  "Model jest dobrze dopasowany."
+}
+
+cat("Ocena modelu (F1-Score): ", overfitting_check_f1)
+```
+
+### Ważność zmiennych dla Random Forest
+
+```{r}
+var_imp <- varImp(model_rf)
+var_imp_df <- as.data.frame(var_imp$importance)
+var_imp_df$Feature <- rownames(var_imp_df)
+ggplot(var_imp_df, aes(x = reorder(Feature, Overall), y = Overall)) + 
+  geom_bar(stat = "identity", fill = "#AF47D2") + 
+  coord_flip() + 
+  labs(title = "Ważność zmiennych - Random Forest", x = "Feature", y = "Importance")
+
+```
+
+Najważniejsze zmienne to HbA1c_level, blood_glucose_level oraz age.
+
+### Wizualizacja jednego z drzew decyzyjnych z Random Forest
+
+Losowo wybieramy jedno drzewo do wizualizacji.
+
+```{r}
+library(randomForest)
+library(rpart.plot)
+
+one_tree <- getTree(model_rf$finalModel, k = 355, labelVar = TRUE)
+
+tree_model <- rpart(as.factor(diabetes) ~ ., data = train_data, 
+                    method = "class", control = rpart.control(maxdepth = 6, cp = 0.01))
+
+# Wizualizacja drzewa decyzyjnego
+rpart.plot(tree_model, main = "Jedno drzewo decyzyjne z Random Forest", type = 2, extra = 106)
+```
+
+## 3. Support Vector Machine (SVM)
+
+Support Vector Machine (SVM) to potężny algorytm uczenia maszynowego używany głównie do zadań klasyfikacji, choć może być również stosowany do regresji.
+
+Za pomocą *`sigest`* obliczana jest wartość estymacji sigma, która jest używana jako parametr w modelu SVM.
+
+Siatka parametrów służy do dostrojenia dwóch kluczowych hiperparametrów: sigma i C.
+
+```{r}
+sigma_estimate <- sigest(diabetes ~ ., data = train_data, frac = 1)[1]
+
+tuneGrid_svm <- expand.grid(sigma = sigma_estimate, C = c(0.1, 1, 10))
+
+set.seed(2024)
+model_svm <- train(diabetes ~ ., data = train_data, method = "svmRadial", 
+                   trControl = control, tuneGrid = tuneGrid_svm, metric = "Accuracy")
+
+```
+
+### Wyświetlenie najlepszych hiperparametrów
+
+```{r}
+best_params_svm <- model_svm$bestTune
+
+best_params_svm_df <- as.data.frame(best_params_svm)
+
+rownames(best_params_svm_df) <- NULL
+
+best_params_svm_df %>%
+  kbl(caption = "Najlepsze hiperparametry dla modelu SVM") %>%
+  kable_styling(full_width = T) %>%
+  row_spec(1, background = "#d76b69")
+```
+
+### Predykcja na zbiorze treningowym
+
+```{r}
+pred_svm_train <- predict(model_svm, newdata = train_data)
+conf_matrix_svm_train <- confusionMatrix(pred_svm_train, train_data$diabetes, positive = "YES")
+
+train_accuracy_svm <- conf_matrix_svm_train$overall["Accuracy"]
+
+conf_matrix_svm_train$table %>%
+  kbl(caption = "Macierz konfuzji dla zbioru treningowego") %>%
+  kable_styling(bootstrap_options = c("hover"), full_width = F) %>%
+  column_spec(1, background = "#d76b69")
+```
+
+### Wyświetlenie statystyk dla zbioru treningowego
+
+```{r}
+conf_matrix_svm_train_stats <- conf_matrix_svm_train$byClass
+conf_matrix_svm_train_overall <- conf_matrix_svm_train$overall
+
+j_index_svm_train <- conf_matrix_svm_train_stats["Sensitivity"] + conf_matrix_svm_train_stats["Specificity"] - 1
+
+conf_matrix_svm_train_df <- tibble(
+  Metric = c("Accuracy", "Kappa", "Sensitivity", "Specificity", "Pos Pred Value", "Neg Pred Value", "Prevalence", "Detection Rate", "Detection Prevalence", "Balanced Accuracy", "J Index"),
+  Value = c(
+    conf_matrix_svm_train_overall["Accuracy"], 
+    conf_matrix_svm_train_overall["Kappa"], 
+    conf_matrix_svm_train_stats["Sensitivity"], 
+    conf_matrix_svm_train_stats["Specificity"], 
+    conf_matrix_svm_train_stats["Pos Pred Value"], 
+    conf_matrix_svm_train_stats["Neg Pred Value"], 
+    conf_matrix_svm_train_stats["Prevalence"], 
+    conf_matrix_svm_train_stats["Detection Rate"], 
+    conf_matrix_svm_train_stats["Detection Prevalence"], 
+    conf_matrix_svm_train_stats["Balanced Accuracy"],
+    j_index_svm_train
+  )
+)
+
+train_table_svm <- conf_matrix_svm_train_df %>%
+  mutate(Value = round(Value, 4)) %>%
+  kbl(caption = "Macierz klasyfikacji i statystyki dla zbioru treningowego") %>%
+  kable_styling(bootstrap_options = c("hover"), full_width = F) %>%
+  column_spec(2, background = "#d76b69")
+train_table_svm
+```
+
+### Predykcja na zbiorze testowym
+
+```{r}
+pred_svm <- predict(model_svm, newdata = test_data)
+conf_matrix_svm_test <- confusionMatrix(pred_svm, test_data$diabetes, positive = "YES")
+
+test_accuracy_svm <- conf_matrix_svm_test$overall["Accuracy"]
+
+conf_matrix_svm_test$table %>%
+  kbl(caption = "Macierz konfuzji dla zbioru testowego") %>%
+  kable_styling(bootstrap_options = c("hover"), full_width = F) %>%
+  column_spec(1, background = "#d76b69")
+```
+
+### Wyświetlenie statystyk dla zbioru testowego
+
+```{r}
+conf_matrix_svm_test_stats <- conf_matrix_svm_test$byClass
+conf_matrix_svm_test_overall <- conf_matrix_svm_test$overall
+
+j_index_svm_test <- conf_matrix_svm_test_stats["Sensitivity"] + conf_matrix_svm_test_stats["Specificity"] - 1
+
+conf_matrix_svm_test_df <- tibble(
+  Metric = c("Accuracy", "Kappa", "Sensitivity", "Specificity", "Pos Pred Value", "Neg Pred Value", "Prevalence", "Detection Rate", "Detection Prevalence", "Balanced Accuracy", "J Index"),
+  Value = c(
+    conf_matrix_svm_test_overall["Accuracy"], 
+    conf_matrix_svm_test_overall["Kappa"], 
+    conf_matrix_svm_test_stats["Sensitivity"], 
+    conf_matrix_svm_test_stats["Specificity"], 
+    conf_matrix_svm_test_stats["Pos Pred Value"], 
+    conf_matrix_svm_test_stats["Neg Pred Value"], 
+    conf_matrix_svm_test_stats["Prevalence"], 
+    conf_matrix_svm_test_stats["Detection Rate"], 
+    conf_matrix_svm_test_stats["Detection Prevalence"], 
+    conf_matrix_svm_test_stats["Balanced Accuracy"],
+    j_index_svm_test
+  )
+)
+
+test_table_svm <- conf_matrix_svm_test_df %>%
+  mutate(Value = round(Value, 4)) %>%
+  kbl(caption = "Macierz klasyfikacji i statystyki dla zbioru testowego") %>%
+  kable_styling(bootstrap_options = c("hover"), full_width = F) %>%
+  column_spec(2, background = "#d76b69")
+test_table_svm
+```
+
+### Obliczanie i wyświetlanie AUC
+
+```{r}
+roc_train_svm <- roc(train_data$diabetes, as.numeric(predict(model_svm, train_data, type = "prob")[, 2]))
+auc_train_svm <- auc(roc_train_svm)
+
+roc_test_svm <- roc(test_data$diabetes, as.numeric(predict(model_svm, test_data, type = "prob")[, 2]))
+auc_test_svm <- auc(roc_test_svm)
+
+plot(roc_train_svm, col = "#d76b69", main = "ROC Curve - Training vs Testing")
+lines(roc_test_svm, col = "#FFDB00")
+legend("bottomright", legend = c("Train", "Test"), col = c("#d76b69", "#FFDB00"), lwd = 2)
+
+auc_results_svm <- tibble(
+  Metric = c("AUC (Training Set)", "AUC (Testing Set)"),
+  Value = c(auc_train_svm, auc_test_svm)
+)
+```
+
+```{r}
+auc_results_svm %>%
+  mutate(Value = round(Value, 4)) %>%
+  kbl(caption = "Wartości AUC dla zbiorów treningowego i testowego") %>%
+  kable_styling(bootstrap_options = c("hover"), full_width = F) %>%
+  column_spec(1, background = "#d76b69")
+```
+
+```{r}
+overfitting_check_svm <- if (auc_train_svm - auc_test_svm > 0.05) {
+  "Model może być przeuczony (overfitting)."
+} else {
+  "Model jest dobrze dopasowany."
+}
+
+cat("Ocena modelu: ", overfitting_check_svm)
+```
+
+### Obliczanie i wyświetlanie F1-Score
+
+```{r}
+f1_train_svm <- F_meas(data = pred_svm_train, reference = train_data$diabetes, positive = "YES")
+
+f1_test_svm <- F_meas(data = pred_svm, reference = test_data$diabetes, positive = "YES")
+
+f1_results_svm <- tibble(
+  Metric = c("F1-Score (Training Set)", "F1-Score (Testing Set)"),
+  Value = c(f1_train_svm, f1_test_svm)
+)
+
+f1_results_svm %>%
+  mutate(Value = round(Value, 4)) %>%
+  kbl(caption = "Wartości F1-Score dla zbiorów treningowego i testowego") %>%
+  kable_styling(bootstrap_options = c("hover"), full_width = F) %>%
+  column_spec(1, background = "#d76b69")
+```
+
+```{r}
+overfitting_check_f1_svm <- if (f1_train_svm - f1_test_svm > 0.05) {
+  "Model może być przeuczony (overfitting)."
+} else {
+  "Model jest dobrze dopasowany."
+}
+
+cat("Ocena modelu (F1-Score): ", overfitting_check_f1_svm)
+```
+
+### Ważność zmiennych dla SVM
+
+W przypadku modelu Support Vector Machine (SVM) nie da się bezpośrednio pokazać ważności zmiennych, ponieważ SVM nie zwraca ważności cech w postaci, którą można łatwo zinterpretować.
+
+## 4. Classification and Regression Trees (CART)
+
+CART to algorytm uczenia maszynowego stosowany do zadań klasyfikacyjnych i regresyjnych. Tworzy modele predykcyjne w postaci drzew decyzyjnych, które są łatwe do zrozumienia i interpretacji.
+
+Siatka parametrów służy do dostrojenia hiperparametru cp (complexity parameter), który jest kluczowy dla regulacji złożoności drzewa decyzyjnego.
+
+```{r}
+tuneGrid_cart <- expand.grid(cp = seq(0.01, 0.2, 0.02))
+
+set.seed(2024)
+model_cart <- train(diabetes ~ ., data = train_data, method = "rpart", 
+                    trControl = control, tuneGrid = tuneGrid_cart, metric = "Accuracy")
+
+```
+
+### Wyświetlenie najlepszych hiperparametrów
+
+```{r}
+best_params_cart <- model_cart$bestTune
+
+best_params_cart_df <- as.data.frame(best_params_cart)
+
+rownames(best_params_cart_df) <- NULL
+
+best_params_cart_df %>%
+  kbl(caption = "Najlepsze hiperparametry dla modelu CART") %>%
+  kable_styling(full_width = T) %>%
+  row_spec(1, background = "#FF8F00")
+
+```
+
+### Predykcja na zbiorze treningowym
+
+```{r}
+pred_cart_train <- predict(model_cart, newdata = train_data)
+conf_matrix_cart_train <- confusionMatrix(pred_cart_train, train_data$diabetes, positive = "YES")
+
+train_accuracy_cart <- conf_matrix_cart_train$overall["Accuracy"]
+
+conf_matrix_cart_train$table %>%
+  kbl(caption = "Macierz konfuzji dla zbioru treningowego") %>%
+  kable_styling(bootstrap_options = c("hover"), full_width = F) %>%
+  column_spec(1, background = "#FF8F00")
+
+```
+
+### Wyświetlenie statystyk dla zbioru treningowego
+
+```{r}
+conf_matrix_cart_train_stats <- conf_matrix_cart_train$byClass
+conf_matrix_cart_train_overall <- conf_matrix_cart_train$overall
+
+j_index_cart_train <- conf_matrix_cart_train_stats["Sensitivity"] + conf_matrix_cart_train_stats["Specificity"] - 1
+
+conf_matrix_cart_train_df <- tibble(
+  Metric = c("Accuracy", "Kappa", "Sensitivity", "Specificity", "Pos Pred Value", "Neg Pred Value", "Prevalence", "Detection Rate", "Detection Prevalence", "Balanced Accuracy", "J Index"),
+  Value = c(
+    conf_matrix_cart_train_overall["Accuracy"], 
+    conf_matrix_cart_train_overall["Kappa"], 
+    conf_matrix_cart_train_stats["Sensitivity"], 
+    conf_matrix_cart_train_stats["Specificity"], 
+    conf_matrix_cart_train_stats["Pos Pred Value"], 
+    conf_matrix_cart_train_stats["Neg Pred Value"], 
+    conf_matrix_cart_train_stats["Prevalence"], 
+    conf_matrix_cart_train_stats["Detection Rate"], 
+    conf_matrix_cart_train_stats["Detection Prevalence"], 
+    conf_matrix_cart_train_stats["Balanced Accuracy"],
+    j_index_cart_train
+  )
+)
+
+train_table_cart <- conf_matrix_cart_train_df %>%
+  mutate(Value = round(Value, 4)) %>%
+  kbl(caption = "Macierz klasyfikacji i statystyki dla zbioru treningowego") %>%
+  kable_styling(bootstrap_options = c("hover"), full_width = F) %>%
+  column_spec(2, background = "#FF8F00")
+train_table_cart
+
+```
+
+### Predykcja na zbiorze testowym
+
+```{r}
+pred_cart <- predict(model_cart, newdata = test_data)
+conf_matrix_cart_test <- confusionMatrix(pred_cart, test_data$diabetes, positive = "YES")
+
+test_accuracy_cart <- conf_matrix_cart_test$overall["Accuracy"]
+
+conf_matrix_cart_test$table %>%
+  kbl(caption = "Macierz konfuzji dla zbioru testowego") %>%
+  kable_styling(bootstrap_options = c("hover"), full_width = F) %>%
+  column_spec(1, background = "#FF8F00")
+
+```
+
+### Wyświetlenie statystyk dla zbioru testowego
+
+```{r}
+conf_matrix_cart_test_stats <- conf_matrix_cart_test$byClass
+conf_matrix_cart_test_overall <- conf_matrix_cart_test$overall
+
+j_index_cart_test <- conf_matrix_cart_test_stats["Sensitivity"] + conf_matrix_cart_test_stats["Specificity"] - 1
+
+conf_matrix_cart_test_df <- tibble(
+  Metric = c("Accuracy", "Kappa", "Sensitivity", "Specificity", "Pos Pred Value", "Neg Pred Value", "Prevalence", "Detection Rate", "Detection Prevalence", "Balanced Accuracy", "J Index"),
+  Value = c(
+    conf_matrix_cart_test_overall["Accuracy"], 
+    conf_matrix_cart_test_overall["Kappa"], 
+    conf_matrix_cart_test_stats["Sensitivity"], 
+    conf_matrix_cart_test_stats["Specificity"], 
+    conf_matrix_cart_test_stats["Pos Pred Value"], 
+    conf_matrix_cart_test_stats["Neg Pred Value"], 
+    conf_matrix_cart_test_stats["Prevalence"], 
+    conf_matrix_cart_test_stats["Detection Rate"], 
+    conf_matrix_cart_test_stats["Detection Prevalence"], 
+    conf_matrix_cart_test_stats["Balanced Accuracy"],
+    j_index_cart_test
+  )
+)
+
+test_table_cart <- conf_matrix_cart_test_df %>%
+  mutate(Value = round(Value, 4)) %>%
+  kbl(caption = "Macierz klasyfikacji i statystyki dla zbioru testowego") %>%
+  kable_styling(bootstrap_options = c("hover"), full_width = F) %>%
+  column_spec(2, background = "#FF8F00")
+test_table_cart
+
+```
+
+### Obliczanie i wyświetlanie AUC
+
+```{r}
+roc_train_cart <- roc(train_data$diabetes, as.numeric(predict(model_cart, train_data, type = "prob")[, 2]))
+auc_train_cart <- auc(roc_train_cart)
+
+roc_test_cart <- roc(test_data$diabetes, as.numeric(predict(model_cart, test_data, type = "prob")[, 2]))
+auc_test_cart <- auc(roc_test_cart)
+
+plot(roc_train_cart, col = "#FF8F00", main = "ROC Curve - Training vs Testing")
+lines(roc_test_cart, col = "#26355D")
+legend("bottomright", legend = c("Train", "Test"), col = c("#FF8F00", "#26355D"), lwd = 2)
+
+auc_results_cart <- tibble(
+  Metric = c("AUC (Training Set)", "AUC (Testing Set)"),
+  Value = c(auc_train_cart, auc_test_cart)
+)
+
+```
+
+```{r}
+auc_results_cart %>%
+  mutate(Value = round(Value, 4)) %>%
+  kbl(caption = "Wartości AUC dla zbiorów treningowego i testowego") %>%
+  kable_styling(bootstrap_options = c("hover"), full_width = F) %>%
+  column_spec(1, background = "#FF8F00")
+
+```
+
+```{r}
+overfitting_check_cart <- if (auc_train_cart - auc_test_cart > 0.05) {
+  "Model może być przeuczony (overfitting)."
+} else {
+  "Model jest dobrze dopasowany."
+}
+
+cat("Ocena modelu: ", overfitting_check_cart)
+
+```
+
+### Obliczanie i wyświetlanie F1-Score
+
+```{r}
+f1_train_cart <- F_meas(data = pred_cart_train, reference = train_data$diabetes, positive = "YES")
+
+f1_test_cart <- F_meas(data = pred_cart, reference = test_data$diabetes, positive = "YES")
+
+f1_results_cart <- tibble(
+  Metric = c("F1-Score (Training Set)", "F1-Score (Testing Set)"),
+  Value = c(f1_train_cart, f1_test_cart)
+)
+
+f1_results_cart %>%
+  mutate(Value = round(Value, 4)) %>%
+  kbl(caption = "Wartości F1-Score dla zbiorów treningowego i testowego") %>%
+  kable_styling(bootstrap_options = c("hover"), full_width = F) %>%
+  column_spec(1, background = "#FF8F00")
+
+```
+
+```{r}
+overfitting_check_f1_cart <- if (f1_train_cart - f1_test_cart > 0.05) {
+  "Model może być przeuczony (overfitting)."
+} else {
+  "Model jest dobrze dopasowany."
+}
+
+cat("Ocena modelu (F1-Score): ", overfitting_check_f1_cart)
+
+```
+
+### Ważność zmiennych dla CART
+
+```{r}
+var_imp_cart <- varImp(model_cart)
+var_imp_cart_df <- as.data.frame(var_imp_cart$importance)
+var_imp_cart_df$Feature <- rownames(var_imp_cart_df)
+ggplot(var_imp_cart_df, aes(x = reorder(Feature, Overall), y = Overall)) + 
+  geom_bar(stat = "identity", fill = "#FF8F00") + 
+  coord_flip() + 
+  labs(title = "Ważność zmiennych - CART", x = "Feature", y = "Importance")
+
+```
+
+Najważniejsze zmienne to HbA1c_level, blood_glucose_level, age i bmi.
+
+### wizualizacja drzewa decyzyjnego
+
+```{r}
+library(rpart.plot)
+
+rpart.plot(model_cart$finalModel, main = "Drzewo decyzyjne - CART", type = 2, extra = 106)
+
+```
+
+## 5. Regularized Discriminant Analysis (RDA)
+
+RDA to technika klasyfikacyjna, która łączy elementy dwóch popularnych metod: Linear Discriminant Analysis (LDA) i Quadratic Discriminant Analysis (QDA). RDA wprowadza dodatkowe parametry regularyzacyjne, aby kontrolować kompromis między LDA a QDA, co pozwala na lepsze dostosowanie modelu do danych.
+
+Wartości w siatce są wybrane w celu dostrojenia dwóch hiperparametrów modelu: gamma i lambda.
+
+```{r}
+tuneGrid_rda <- expand.grid(
+  gamma = c(0.1, 0.5, 1),
+  lambda = c(0.1, 0.5, 1)
+)
+
+set.seed(2024)
+model_rda <- train(diabetes ~ ., data = train_data, method = "rda", 
+                   trControl = control, tuneGrid = tuneGrid_rda, metric = "Accuracy")
+
+```
+
+### Wyświetlenie najlepszych hiperparametrów
+
+```{r}
+best_params_rda <- model_rda$bestTune
+
+best_params_rda_df <- as.data.frame(best_params_rda)
+
+rownames(best_params_rda_df) <- NULL
+
+best_params_rda_df %>%
+  kbl(caption = "Najlepsze hiperparametry dla modelu RDA") %>%
+  kable_styling(full_width = T) %>%
+  row_spec(1, background = "#FFDB00")
+
+```
+
+### Predykcja na zbiorze treningowym
+
+```{r}
+pred_rda_train <- predict(model_rda, newdata = train_data)
+conf_matrix_rda_train <- confusionMatrix(pred_rda_train, train_data$diabetes, positive = "YES")
+
+train_accuracy_rda <- conf_matrix_rda_train$overall["Accuracy"]
+
+conf_matrix_rda_train$table %>%
+  kbl(caption = "Macierz konfuzji dla zbioru treningowego") %>%
+  kable_styling(bootstrap_options = c("hover"), full_width = F) %>%
+  column_spec(1, background = "#FFDB00")
+
+```
+
+### Wyświetlenie statystyk dla zbioru treningowego
+
+```{r}
+conf_matrix_rda_train_stats <- conf_matrix_rda_train$byClass
+conf_matrix_rda_train_overall <- conf_matrix_rda_train$overall
+
+j_index_rda_train <- conf_matrix_rda_train_stats["Sensitivity"] + conf_matrix_rda_train_stats["Specificity"] - 1
+
+conf_matrix_rda_train_df <- tibble(
+  Metric = c("Accuracy", "Kappa", "Sensitivity", "Specificity", "Pos Pred Value", "Neg Pred Value", "Prevalence", "Detection Rate", "Detection Prevalence", "Balanced Accuracy", "J Index"),
+  Value = c(
+    conf_matrix_rda_train_overall["Accuracy"], 
+    conf_matrix_rda_train_overall["Kappa"], 
+    conf_matrix_rda_train_stats["Sensitivity"], 
+    conf_matrix_rda_train_stats["Specificity"], 
+    conf_matrix_rda_train_stats["Pos Pred Value"], 
+    conf_matrix_rda_train_stats["Neg Pred Value"], 
+    conf_matrix_rda_train_stats["Prevalence"], 
+    conf_matrix_rda_train_stats["Detection Rate"], 
+    conf_matrix_rda_train_stats["Detection Prevalence"], 
+    conf_matrix_rda_train_stats["Balanced Accuracy"],
+    j_index_rda_train
+  )
+)
+
+train_table_rda <- conf_matrix_rda_train_df %>%
+  mutate(Value = round(Value, 4)) %>%
+  kbl(caption = "Macierz klasyfikacji i statystyki dla zbioru treningowego") %>%
+  kable_styling(bootstrap_options = c("hover"), full_width = F) %>%
+  column_spec(2, background = "#FFDB00")
+train_table_rda
+
+```
+
+### Predykcja na zbiorze testowym
+
+```{r}
+pred_rda <- predict(model_rda, newdata = test_data)
+conf_matrix_rda_test <- confusionMatrix(pred_rda, test_data$diabetes, positive = "YES")
+
+test_accuracy_rda <- conf_matrix_rda_test$overall["Accuracy"]
+
+conf_matrix_rda_test$table %>%
+  kbl(caption = "Macierz konfuzji dla zbioru testowego") %>%
+  kable_styling(bootstrap_options = c("hover"), full_width = F) %>%
+  column_spec(1, background = "#FFDB00")
+
+```
+
+### Wyświetlenie statystyk dla zbioru testowego
+
+```{r}
+conf_matrix_rda_test_stats <- conf_matrix_rda_test$byClass
+conf_matrix_rda_test_overall <- conf_matrix_rda_test$overall
+
+j_index_rda_test <- conf_matrix_rda_test_stats["Sensitivity"] + conf_matrix_rda_test_stats["Specificity"] - 1
+
+conf_matrix_rda_test_df <- tibble(
+  Metric = c("Accuracy", "Kappa", "Sensitivity", "Specificity", "Pos Pred Value", "Neg Pred Value", "Prevalence", "Detection Rate", "Detection Prevalence", "Balanced Accuracy", "J Index"),
+  Value = c(
+    conf_matrix_rda_test_overall["Accuracy"], 
+    conf_matrix_rda_test_overall["Kappa"], 
+    conf_matrix_rda_test_stats["Sensitivity"], 
+    conf_matrix_rda_test_stats["Specificity"], 
+    conf_matrix_rda_test_stats["Pos Pred Value"], 
+    conf_matrix_rda_test_stats["Neg Pred Value"], 
+    conf_matrix_rda_test_stats["Prevalence"], 
+    conf_matrix_rda_test_stats["Detection Rate"], 
+    conf_matrix_rda_test_stats["Detection Prevalence"], 
+    conf_matrix_rda_test_stats["Balanced Accuracy"],
+    j_index_rda_test
+  )
+)
+
+test_table_rda <- conf_matrix_rda_test_df %>%
+  mutate(Value = round(Value, 4)) %>%
+  kbl(caption = "Macierz klasyfikacji i statystyki dla zbioru testowego") %>%
+  kable_styling(bootstrap_options = c("hover"), full_width = F) %>%
+  column_spec(2, background = "#FFDB00")
+test_table_rda
+
+```
+
+### Obliczanie i wyświetlanie AUC
+
+```{r}
+roc_train_rda <- roc(train_data$diabetes, as.numeric(predict(model_rda, train_data, type = "prob")[, 2]))
+auc_train_rda <- auc(roc_train_rda)
+
+roc_test_rda <- roc(test_data$diabetes, as.numeric(predict(model_rda, test_data, type = "prob")[, 2]))
+auc_test_rda <- auc(roc_test_rda)
+
+plot(roc_train_rda, col = "#FFDB00", main = "ROC Curve - Training vs Testing")
+lines(roc_test_rda, col = "#AF47D2")
+legend("bottomright", legend = c("Train", "Test"), col = c("#FFDB00", "#AF47D2"), lwd = 2)
+
+auc_results_rda <- tibble(
+  Metric = c("AUC (Training Set)", "AUC (Testing Set)"),
+  Value = c(auc_train_rda, auc_test_rda)
+)
+
+auc_results_rda %>%
+  mutate(Value = round(Value, 4)) %>%
+  kbl(caption = "Wartości AUC dla zbiorów treningowego i testowego") %>%
+  kable_styling(bootstrap_options = c("hover"), full_width = F) %>%
+  column_spec(1, background = "#FFDB00")
+
+```
+
+```{r}
+overfitting_check_rda <- if (auc_train_rda - auc_test_rda > 0.05) {
+  "Model może być przeuczony (overfitting)."
+} else {
+  "Model jest dobrze dopasowany."
+}
+
+cat("Ocena modelu: ", overfitting_check_rda)
+
+```
+
+### Obliczanie i wyświetlanie F1-Score
+
+```{r}
+f1_train_rda <- F_meas(data = pred_rda_train, reference = train_data$diabetes, positive = "YES")
+
+f1_test_rda <- F_meas(data = pred_rda, reference = test_data$diabetes, positive = "YES")
+
+f1_results_rda <- tibble(
+  Metric = c("F1-Score (Training Set)", "F1-Score (Testing Set)"),
+  Value = c(f1_train_rda, f1_test_rda)
+)
+
+f1_results_rda %>%
+  mutate(Value = round(Value, 4)) %>%
+  kbl(caption = "Wartości F1-Score dla zbiorów treningowego i testowego") %>%
+  kable_styling(bootstrap_options = c("hover"), full_width = F) %>%
+  column_spec(1, background = "#FFDB00")
+
+```
+
+```{r}
+overfitting_check_f1_rda <- if (f1_train_rda - f1_test_rda > 0.05) {
+  "Model może być przeuczony (overfitting)."
+} else {
+  "Model jest dobrze dopasowany."
+}
+
+cat("Ocena modelu (F1-Score): ", overfitting_check_f1_rda)
+
+```
+
+### Ważność zmiennych dla Regularized Discriminant Analysis
+
+Ważność zmiennych dla RDA W przypadku modelu Regularized Discriminant Analysis (RDA) nie da się bezpośrednio pokazać ważności zmiennych w postaci zrozumiałej interpretacji, ponieważ model RDA nie zwraca ich w taki sposób.
+
+# Porównywanie modeli
+
+W celu przewidywania cukrzycy na podstawie dostarczonych danych zastosowaliśmy kilka modeli klasyfikacyjnych: Logistic Regression, Random Forest, Support Vector Machine (SVM), CART, oraz Regularized Discriminant Analysis (RDA). Poniżej przedstawiono porównanie ich wyników dla kluczowych metryk. Na podstawie tych wyników dokonano oceny, który model jest najlepszy, a który najgorszy.
+
+```{r}
+extract_metrics <- function(conf_matrix_overall, conf_matrix_stats, j_index) {
+  tibble(
+    Metric = c("Accuracy", "Kappa", "Sensitivity", "Specificity", "Pos Pred Value", "Neg Pred Value", 
+               "Prevalence", "Detection Rate", "Detection Prevalence", "Balanced Accuracy", "J Index"),
+    Value = c(
+      conf_matrix_overall["Accuracy"], 
+      conf_matrix_overall["Kappa"], 
+      conf_matrix_stats["Sensitivity"], 
+      conf_matrix_stats["Specificity"], 
+      conf_matrix_stats["Pos Pred Value"], 
+      conf_matrix_stats["Neg Pred Value"], 
+      conf_matrix_stats["Prevalence"], 
+      conf_matrix_stats["Detection Rate"], 
+      conf_matrix_stats["Detection Prevalence"], 
+      conf_matrix_stats["Balanced Accuracy"],
+      j_index
+    )
+  )
+}
+
+log_metrics <- extract_metrics(conf_matrix_log_test_overall, conf_matrix_log_test_stats, j_index_log_test)
+rf_metrics <- extract_metrics(conf_matrix_rf_test_overall, conf_matrix_rf_test_stats, j_index_test)
+svm_metrics <- extract_metrics(conf_matrix_svm_test_overall, conf_matrix_svm_test_stats, j_index_svm_test)
+cart_metrics <- extract_metrics(conf_matrix_cart_test_overall, conf_matrix_cart_test_stats, j_index_cart_test)
+rda_metrics <- extract_metrics(conf_matrix_rda_test_overall, conf_matrix_rda_test_stats, j_index_rda_test)
+
+all_models_results <- log_metrics %>%
+  rename(`Logistic Regression` = Value) %>%
+  left_join(rf_metrics %>% rename(`Random Forest` = Value), by = "Metric") %>%
+  left_join(svm_metrics %>% rename(`SVM` = Value), by = "Metric") %>%
+  left_join(cart_metrics %>% rename(`CART` = Value), by = "Metric") %>%
+  left_join(rda_metrics %>% rename(`RDA` = Value), by = "Metric")
+
+all_models_results %>%
+  mutate(across(where(is.numeric), round, 4)) %>%
+  kbl(caption = "Porównanie wyników wszystkich modeli") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = F) %>%
+  column_spec(2, background = "#295b86")%>%
+  column_spec(3, background = "#AF47D2") %>% 
+  column_spec(4, background = "#d76b69")%>%
+  column_spec(5, background = "#FF8F00") %>% 
+  column_spec(6, background = "#FFDB00")
+
+```
+
+Model **Random Forest** wyróżnia się jako najlepszy.
+
+-   Ma najwyższą wartość *Accuracy*.
+
+-   Ma najwyższą wartość *Kappa*.
+
+-   Ma najwyższą wartość *Sensitivity*.
+
+-   Ma najwyższą wartość *Neg Pred Value*.
+
+-   Ma najwyższą wartość *Detection Rate*.
+
+-   Ma najwyższą wartość *Detection Prevalence*.
+
+-   Ma najwyższą wartość *Balanced Accuracy*.
+
+-   Ma najwyższą wartość *J Index*.
+
+## Porównanie drzew decyzyjnych
+
+```{r}
+rpart.plot(tree_model, main = "Jedno drzewo decyzyjne z Random Forest", type = 2, extra = 106)
+```
+
+```{r}
+rpart.plot(model_cart$finalModel, main = "Drzewo decyzyjne - CART", type = 2, extra = 106)
+```
+
+Przyjrzyjmy się dwóm drzewom decyzyjnym: jedno to losowo wybrane drzewo z **Random Forest**, a drugie to drzewo z **CART**. Nietrudno zauważyć, że te drzewa są prawie identyczne, z wyjątkiem tego, że drzewo **CART** jest głębsze. Ten fakt może wskazywać na kilka istotnych kwestii:
+
+-   Kluczowe zmienne (`HbA1c_level, blood_glucose_level, age`) są silnie związane z predykcją cukrzycy.
+
+-   Stabilne wzorce w danych są łatwe do uchwycenia przez oba algorytmy.
+
+-   Dane są dobrze przygotowane i zawierają istotne cechy, co prowadzi do podobnych struktur decyzyjnych w różnych modelach.
+
+## Podobieństwo modeli
+
+Wszystkie zastosowane modele wykazały wysoką skuteczność w przewidywaniu cukrzycy. Świadczy to o tym, że dane medyczne i demograficzne zawarte w tabeli danych są dobrze dobrane do tego zadania.
+
+Warto również zauważyć, że w modelach, gdzie można było zidentyfikować najważniejsze zmienne, do najistotniejszych należały `HbA1c_level`, `blood_glucose_level` oraz `age`.
+
+# Podsumowanie
+
+Nasza analiza danych dotyczących pacjentów z cukrzycą wykazała, że modele mogą skutecznie przewidywać obecność cukrzycy na podstawie zmiennych medycznych i demograficznych. Zastosowane modele wykazały wysoką skuteczność i spójność wyników, co świadczy o jakości danych i metodologii. Wyniki te mogą być użyteczne w praktyce klinicznej do wspomagania diagnozy i zarządzania cukrzycą.
